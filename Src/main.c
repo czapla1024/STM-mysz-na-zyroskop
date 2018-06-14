@@ -53,6 +53,49 @@
 /* USER CODE BEGIN Includes */
 #include "usbd_hid.h"
 extern USBD_HandleTypeDef hUsbDeviceFS;
+#define PWR_BASE_ADDRESS     0x40007000
+#define PWR_CR               PWR_BASE_ADDRESS + 0x00  // PWR power control register
+
+#define RCC_BASE_ADDRESS     0x40023800
+#define RCC_CR               RCC_BASE_ADDRESS + 0x00  // RCC clock control register
+#define RCC_PLLCFGR          RCC_BASE_ADDRESS + 0x04  // RCC PLL configuration register
+#define RCC_CFGR             RCC_BASE_ADDRESS + 0x08  // RCC clock configuration register
+#define RCC_AHB1ENR          RCC_BASE_ADDRESS + 0x30  // RCC AHB1 peripheral clock enable register (pg 116)
+#define RCC_APB1ENR          RCC_BASE_ADDRESS + 0x40  // RCC APB1 peripheral clock enable register (pg 117)
+#define RCC_APB2ENR          RCC_BASE_ADDRESS + 0x44  // RCC APB2 peripheral clock enable register (pg 120)
+
+#define GPIOA_BASE_ADDRESS   0x40020000
+#define GPIOA_MODER          GPIOA_BASE_ADDRESS + 0x00 // GPIO port mode register
+#define GPIOA_OSPEEDR        GPIOA_BASE_ADDRESS + 0x08 // GPIO port output speed register
+#define GPIOA_PUPR           GPIOA_BASE_ADDRESS + 0x0C // GPIO port pull-up/pull-down register
+#define GPIOA_ODR            GPIOA_BASE_ADDRESS + 0x14 // GPIO port output data register
+#define GPIOA_AFRL           GPIOA_BASE_ADDRESS + 0x20 // GPIO alternate function low register
+#define GPIOA_AFRH           GPIOA_BASE_ADDRESS + 0x24 // GPIO alternate function high register
+
+#define GPIOB_BASE_ADDRESS   0x40020400
+#define GPIOB_MODER          GPIOB_BASE_ADDRESS + 0x00 // GPIO port mode register
+#define GPIOB_OSPEEDR        GPIOB_BASE_ADDRESS + 0x08 // GPIO port output speed register
+#define GPIOB_PUPR           GPIOB_BASE_ADDRESS + 0x0C // GPIO port pull-up/pull-down register
+#define GPIOB_ODR            GPIOB_BASE_ADDRESS + 0x14 // GPIO port output data register
+#define GPIOB_AFRL           GPIOB_BASE_ADDRESS + 0x20 // GPIO alternate function low register
+#define GPIOB_AFRH           GPIOB_BASE_ADDRESS + 0x24 // GPIO alternate function high register
+
+#define GPIOE_BASE_ADDRESS   0x40021000
+#define GPIOE_MODER          GPIOE_BASE_ADDRESS + 0x00 // GPIO port mode register
+#define GPIOE_OSPEEDR        GPIOE_BASE_ADDRESS + 0x08 // GPIO port output speed register
+#define GPIOE_PUPR           GPIOE_BASE_ADDRESS + 0x0C // GPIO port pull-up/pull-down register
+#define GPIOE_ODR            GPIOE_BASE_ADDRESS + 0x14 // GPIO port output data register
+#define GPIOE_BSRR           GPIOE_BASE_ADDRESS + 0x18 // GPIO port bit set/reset register
+#define GPIOE_AFRL           GPIOE_BASE_ADDRESS + 0x20 // GPIO alternate function low register
+#define GPIOE_AFRH           GPIOE_BASE_ADDRESS + 0x24 // GPIO alternate function high register
+
+#define SPI1_BASE_ADDRESS    0x40013000
+#define SPI1_CR1             SPI1_BASE_ADDRESS + 0x00 // SPI control register 1
+#define SPI1_SR              SPI1_BASE_ADDRESS + 0x08 // SPI status register
+#define SPI1_DR              SPI1_BASE_ADDRESS + 0x0C // SPI data register
+#define SPI1_BSRR            SPI1_BASE_ADDRESS + 0x18 // GPIO port bit set/reset register
+#define ACCESS(address)      *((volatile unsigned int*)(address))
+
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
@@ -60,7 +103,7 @@ SPI_HandleTypeDef hspi1;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-uint8_t xturn, yturn;
+short xturn, yturn, zturn;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -77,14 +120,55 @@ void MouseSend(uint8_t* buff, uint8_t click, uint8_t osx ,uint8_t osy) {
 	buff[2]=osx;
 	buff[3]=osy;
 }
-void spi_write(uint8_t x) {
-	HAL_SPI_Transmit(&hspi1, &x, 1, 50);
+void WaitForSPI1RXReady()
+{
+	while((ACCESS(SPI1_SR) & 1) == 0 || (ACCESS(SPI1_SR) & (1 << 7)) == 1) { }
 }
-void spi_open(){
-	HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, 0);
+
+void WaitForSPI1TXReady()
+{
+	while((ACCESS(SPI1_SR) & (1 << 1)) == 0 || (ACCESS(SPI1_SR) & (1 << 7)) == 1) { }
 }
-void spi_close(){
-	HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, 1);
+unsigned char ReadFromGyro(unsigned char gyroRegister)
+{
+	ACCESS(GPIOE_BSRR) |= (1 << 19);
+	WaitForSPI1TXReady();
+	ACCESS(SPI1_DR) = (gyroRegister | 0x80);
+	WaitForSPI1RXReady();
+	ACCESS(SPI1_DR);  // I believe we need this simply because a read must follow a write
+	WaitForSPI1TXReady();
+	ACCESS(SPI1_DR) = 0xFF;
+	WaitForSPI1RXReady();
+	volatile unsigned char readValue = (unsigned char)ACCESS(SPI1_DR);
+	ACCESS(GPIOE_BSRR) |= (1 << 3);
+
+	return readValue;
+}
+void WriteToGyro(unsigned char gyroRegister, unsigned char value)
+{
+	ACCESS(GPIOE_BSRR) |= (1 << 19);
+	WaitForSPI1TXReady();
+	ACCESS(SPI1_DR) = gyroRegister;
+	WaitForSPI1RXReady();
+	ACCESS(SPI1_DR);
+	WaitForSPI1TXReady();
+	ACCESS(SPI1_DR) = value;
+	WaitForSPI1RXReady();
+	ACCESS(SPI1_DR);
+	ACCESS(GPIOE_BSRR) |= (1 << 3);
+}
+short GetAxisValue(unsigned char lowRegister, unsigned char highRegister)
+{
+	float scaler = 8.75 * 0.0001;
+	short temp = (ReadFromGyro(lowRegister) | (ReadFromGyro(highRegister) << 8));
+	return (short)((float)temp * scaler);
+}
+
+void GetGyroValues(short* x, short* y, short* z)
+{
+	*x = GetAxisValue(0x28, 0x29);
+	*y = GetAxisValue(0x2A, 0x2B);
+	*z = GetAxisValue(0x2C, 0x2D);
 }
 /* USER CODE END PFP */
 
@@ -124,21 +208,32 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-spi_open();
-spi_write(0x20);
-spi_write(0x0f);
-spi_close();
+  ACCESS(RCC_AHB1ENR) |=1;
+  ACCESS(RCC_AHB1ENR) |=(1 << 4);
+  ACCESS(GPIOA_MODER) |= ((1 << 11) | (1 << 13) | (1 << 15));
+  ACCESS(GPIOE_MODER) |= (1 << 6);
+  ACCESS(GPIOA_AFRL) |= ((5 << 20) | (5 << 24) | (5 << 28));
+  ACCESS(GPIOA_OSPEEDR) |= ((2 << 10) | (2 << 12) | (2 << 14));
+  ACCESS(GPIOE_OSPEEDR) |= (2 << 6);
+  ACCESS(RCC_APB2ENR) |= (1 << 12);
+  ACCESS(SPI1_CR1) |= (1 | (1 << 1) | (1 << 2) | (2 << 3) | (1 << 8) | (1 << 9));
+  ACCESS(SPI1_CR1) |= (1 << 6);
+  ACCESS(GPIOE_BSRR) |= (1 << 3);
+  WriteToGyro(0x20, 0x0F);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  spi_open();
-	  spi_write(0x28);
-	  HAL_SPI_Receive(&hspi1, &xturn, 1, 50);
-	  spi_close();
-	  HAL_Delay(50);
+	  GetGyroValues(&xturn, &yturn, &zturn);
+	  if(HAL_GPIO_ReadPin(but_GPIO_Port, but_Pin))
+		  MouseSend(bufor, 0x01, xturn, yturn);
+	  else
+		  MouseSend(bufor, 0x00, xturn, yturn);
+	  USBD_HID_SendReport (&hUsbDeviceFS, bufor, 4);
+	  for(volatile int i = 0; i < 100000; ++i);
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
