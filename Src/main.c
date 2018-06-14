@@ -57,24 +57,24 @@ uint8_t USBD_HID_SendReport     (USBD_HandleTypeDef  *pdev,
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 #define RCC_BASE_ADDRESS     0x40023800
-#define RCC_AHB1ENR          RCC_BASE_ADDRESS + 0x30  // RCC AHB1 peripheral clock enable register (pg 116)
-#define RCC_APB2ENR          RCC_BASE_ADDRESS + 0x44  // RCC APB2 peripheral clock enable register (pg 120)
+#define RCC_AHB1ENR          RCC_BASE_ADDRESS + 0x30
+#define RCC_APB2ENR          RCC_BASE_ADDRESS + 0x44
 
 #define GPIOA_BASE_ADDRESS   0x40020000
-#define GPIOA_MODER          GPIOA_BASE_ADDRESS + 0x00 // GPIO port mode register
-#define GPIOA_OSPEEDR        GPIOA_BASE_ADDRESS + 0x08 // GPIO port output speed register
-#define GPIOA_AFRL           GPIOA_BASE_ADDRESS + 0x20 // GPIO alternate function low register
-#define GPIOB_AFRH           GPIOB_BASE_ADDRESS + 0x24 // GPIO alternate function high register
+#define GPIOA_MODER          GPIOA_BASE_ADDRESS + 0x00
+#define GPIOA_OSPEEDR        GPIOA_BASE_ADDRESS + 0x08
+#define GPIOA_AFRL           GPIOA_BASE_ADDRESS + 0x20
+#define GPIOB_AFRH           GPIOB_BASE_ADDRESS + 0x24
 
 #define GPIOE_BASE_ADDRESS   0x40021000
-#define GPIOE_MODER          GPIOE_BASE_ADDRESS + 0x00 // GPIO port mode register
-#define GPIOE_OSPEEDR        GPIOE_BASE_ADDRESS + 0x08 // GPIO port output speed register
-#define GPIOE_BSRR           GPIOE_BASE_ADDRESS + 0x18 // GPIO port bit set/reset register
+#define GPIOE_MODER          GPIOE_BASE_ADDRESS + 0x00
+#define GPIOE_OSPEEDR        GPIOE_BASE_ADDRESS + 0x08
+#define GPIOE_BSRR           GPIOE_BASE_ADDRESS + 0x18
 
 #define SPI1_BASE_ADDRESS    0x40013000
-#define SPI1_CR1             SPI1_BASE_ADDRESS + 0x00 // SPI control register 1
-#define SPI1_SR              SPI1_BASE_ADDRESS + 0x08 // SPI status register
-#define SPI1_DR              SPI1_BASE_ADDRESS + 0x0C // SPI data register
+#define SPI1_CR1             SPI1_BASE_ADDRESS + 0x00
+#define SPI1_SR              SPI1_BASE_ADDRESS + 0x08
+#define SPI1_DR              SPI1_BASE_ADDRESS + 0x0C
 #define ACCESS(address)      *((volatile unsigned int*)(address))
 
 /* USER CODE END Includes */
