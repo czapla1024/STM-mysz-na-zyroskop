@@ -212,7 +212,7 @@ int main(void)
 	  if(HAL_GPIO_ReadPin(but_GPIO_Port, but_Pin))
 		  MouseSend(bufor, 0x01, xturn, yturn);
 	  else
-		  MouseSend(bufor, 0x00, -zturn, yturn);
+		  MouseSend(bufor, 0x00, xturn, yturn);
 	  USBD_HID_SendReport (&hUsbDeviceFS, bufor, 4);
 	  for(volatile int i = 0; i < 100000; ++i);
   /* USER CODE END WHILE */
