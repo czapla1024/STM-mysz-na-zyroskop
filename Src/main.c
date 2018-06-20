@@ -56,23 +56,8 @@ uint8_t USBD_HID_SendReport     (USBD_HandleTypeDef  *pdev,
                                  uint16_t len);
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
-#define RCC_BASE_ADDRESS     0x40023800
-#define RCC_AHB1ENR          RCC_BASE_ADDRESS + 0x30
-#define RCC_APB2ENR          RCC_BASE_ADDRESS + 0x44
-
-#define GPIOA_BASE_ADDRESS   0x40020000
-#define GPIOA_MODER          GPIOA_BASE_ADDRESS + 0x00
-#define GPIOA_OSPEEDR        GPIOA_BASE_ADDRESS + 0x08
-#define GPIOA_AFRL           GPIOA_BASE_ADDRESS + 0x20
-#define GPIOB_AFRH           GPIOB_BASE_ADDRESS + 0x24
-
-#define GPIOE_BASE_ADDRESS   0x40021000
-#define GPIOE_MODER          GPIOE_BASE_ADDRESS + 0x00
-#define GPIOE_OSPEEDR        GPIOE_BASE_ADDRESS + 0x08
-#define GPIOE_BSRR           GPIOE_BASE_ADDRESS + 0x18
 
 #define SPI1_BASE_ADDRESS    0x40013000
-#define SPI1_CR1             SPI1_BASE_ADDRESS + 0x00
 #define SPI1_SR              SPI1_BASE_ADDRESS + 0x08
 #define SPI1_DR              SPI1_BASE_ADDRESS + 0x0C
 #define ACCESS(address)      *((volatile unsigned int*)(address))
@@ -110,9 +95,9 @@ void WaitForSPI1TXReady()
 {
 	while((ACCESS(SPI1_SR) & (1 << 1)) == 0 || (ACCESS(SPI1_SR) & (1 << 7)) == 1) { }
 }
-unsigned char ReadFromGyro(unsigned char gyroRegister)
+uint8_t ReadFromGyro(uint8_t gyroRegister)
 {
-	ACCESS(GPIOE_BSRR) |= (1 << 19);
+	HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_RESET);
 	WaitForSPI1TXReady();
 	ACCESS(SPI1_DR) = (gyroRegister | 0x80);
 	WaitForSPI1RXReady();
@@ -121,13 +106,13 @@ unsigned char ReadFromGyro(unsigned char gyroRegister)
 	ACCESS(SPI1_DR) = 0xFF;
 	WaitForSPI1RXReady();
 	volatile unsigned char readValue = (unsigned char)ACCESS(SPI1_DR);
-	ACCESS(GPIOE_BSRR) |= (1 << 3);
+	HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
 
 	return readValue;
 }
-void WriteToGyro(unsigned char gyroRegister, unsigned char value)
+void WriteToGyro(uint8_t gyroRegister, uint8_t value)
 {
-	ACCESS(GPIOE_BSRR) |= (1 << 19);
+	HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_RESET);
 	WaitForSPI1TXReady();
 	ACCESS(SPI1_DR) = gyroRegister;
 	WaitForSPI1RXReady();
@@ -136,9 +121,9 @@ void WriteToGyro(unsigned char gyroRegister, unsigned char value)
 	ACCESS(SPI1_DR) = value;
 	WaitForSPI1RXReady();
 	ACCESS(SPI1_DR);
-	ACCESS(GPIOE_BSRR) |= (1 << 3);
+	HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
 }
-short GetAxisValue(unsigned char lowRegister, unsigned char highRegister)
+short GetAxisValue(uint8_t lowRegister,uint8_t highRegister)
 {
 	float scaler = 8.75 * 0.0003;
 	short temp = (ReadFromGyro(lowRegister) | (ReadFromGyro(highRegister) << 8));
@@ -189,17 +174,8 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-  ACCESS(RCC_AHB1ENR) |=1;
-  ACCESS(RCC_AHB1ENR) |=(1 << 4);
-  ACCESS(GPIOA_MODER) |= ((1 << 11) | (1 << 13) | (1 << 15));
-  ACCESS(GPIOE_MODER) |= (1 << 6);
-  ACCESS(GPIOA_AFRL) |= ((5 << 20) | (5 << 24) | (5 << 28));
-  ACCESS(GPIOA_OSPEEDR) |= ((2 << 10) | (2 << 12) | (2 << 14));
-  ACCESS(GPIOE_OSPEEDR) |= (2 << 6);
-  ACCESS(RCC_APB2ENR) |= (1 << 12);
-  ACCESS(SPI1_CR1) |= (1 | (1 << 1) | (1 << 2) | (2 << 3) | (1 << 8) | (1 << 9));
-  ACCESS(SPI1_CR1) |= (1 << 6);
-  ACCESS(GPIOE_BSRR) |= (1 << 3);
+  __HAL_SPI_ENABLE(&hspi1);
+  HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
   WriteToGyro(0x20, 0x0F);
   MX_USB_DEVICE_Init();
   /* USER CODE END 2 */
@@ -214,7 +190,7 @@ int main(void)
 	  else
 		  MouseSend(bufor, 0x00, -zturn, yturn);
 	  USBD_HID_SendReport (&hUsbDeviceFS, bufor, 4);
-	  for(volatile int i = 0; i < 100000; ++i);
+	  HAL_Delay(1);
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
@@ -367,11 +343,6 @@ void _Error_Handler(char *file, int line)
   /* User can add his own implementation to report the HAL error return state */
   while(1)
   {
-	  if(HAL_GPIO_ReadPin(but_GPIO_Port, but_Pin))
-		  MouseSend(bufor, 0x01, 0x01, 0x01);
-	  else
-		  MouseSend(bufor, 0x00, 0x01, 0x01);
-	  USBD_HID_SendReport(&hUsbDeviceFS, bufor, 4);
   }
   /* USER CODE END Error_Handler_Debug */
 }
